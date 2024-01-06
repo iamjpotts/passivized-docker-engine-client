@@ -6,6 +6,21 @@ on:
     branches: [master]
 
 jobs:
+  check-minimal-versions:
+    name: Check build using minimal versions
+    strategy:
+      matrix:
+        os:
+          - ubuntu-20.04
+        toolchain:
+          - "1.75"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly
+      - run: cargo +nightly generate-lockfile -Z minimal-versions
+      - run: cargo build --all-features
+
   clippy:
     name: Cargo clippy
     strategy:
@@ -15,10 +30,10 @@ jobs:
           - ubuntu-20.04
           - windows-2022
         toolchain:
-          - "1.70"
+          - "1.75"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           components: clippy
@@ -31,12 +46,12 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
+          - ubuntu-24.04
         toolchain:
-          - stable
+          - "1.75"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -50,22 +65,24 @@ jobs:
       # Only have one Mac build because Mac build setup is flaky
       matrix:
         os:
-          - macOS-latest
+          # 13 and 14 are missing colima
+          # 12 has it, but it is now unreliable, see https://github.com/abiosoft/colima/issues/1047
+          - macOS-12
         toolchain:
-          - "1.70"
+          - "1.75"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
       - run: brew install docker
-      - run: colima start
-      - run: docker version
-      - run: docker info
-      - run: echo "DOCKER_HOST=$HOME/.colima/docker.sock" >> "$GITHUB_ENV"
+      #- run: colima start
+      #- run: docker version
+      #- run: docker info
+      #- run: echo "DOCKER_HOST=$HOME/.colima/docker.sock" >> "$GITHUB_ENV"
       - run: cargo test --no-run
-      - run: cargo test --no-fail-fast
+      #- run: cargo test --no-fail-fast
     timeout-minutes: 20
 
   test-nix:
@@ -74,12 +91,12 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - ubuntu-24.04
         toolchain:
-          - "1.70"
-          - stable
+          - "1.75"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           components: clippy
@@ -96,11 +113,10 @@ jobs:
         os:
           - windows-2022
         toolchain:
-          - "1.70"
-          - stable
+          - "1.75"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}

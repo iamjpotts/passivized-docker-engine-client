@@ -10,4 +10,5 @@ pub(crate) mod url;
 pub(crate) mod url_parser;
 
 // Internal to imp crate
+mod hyper_shims;
 mod other;

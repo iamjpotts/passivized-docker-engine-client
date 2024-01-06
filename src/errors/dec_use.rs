@@ -33,6 +33,8 @@ pub enum DecUseError {
     /// A communication failure occurred while sending an HTTP request or receiving its response.
     HttpClientError(hyper::Error),
 
+    HttpClientError2(hyper_util::client::legacy::Error),
+
     /// See docs for DecInternalError.
     Internal(DecLibraryError),
 
@@ -149,6 +151,9 @@ impl DecUseError {
 
             Self::HttpClientError(hyper_error) =>
                 format!("Response error: {}", hyper_error),
+
+            Self::HttpClientError2(error) =>
+                format!("Response error: {}", error),
 
             Self::UnexpectedResponseContentType { expected, actual } =>
                 format!(
