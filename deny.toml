@@ -1,10 +1,7 @@
 
 [advisories]
 ignore = []
-notice = "deny"
-unmaintained = "warn"
-vulnerability = "deny"
-yanked = "deny"
+version = 2
 
 # This library uses the MPL-2 license.
 #
@@ -17,9 +14,8 @@ allow = [
     "MPL-2.0",
     "Unicode-DFS-2016",
 ]
-default = "deny"
 confidence-threshold = 1.0
-unlicensed = "deny"
+version = 2
 
 [bans]
 allow = []
@@ -32,6 +28,8 @@ skip = []
 skip-tree = [
     # Transitive dependency of two direct dependencies of passivized_htpasswd. Only used with tests.
     { name = "blowfish", version = "0.7.0" },
+    # mockito 1.2 still uses hyper 0.14
+    { name = "mockito", version = "1.2.0" },
     # Don't care about Redox operating system
     { name = "redox_syscall" },
     # Tokio 1.35 and simple-logger 4.3 use this old dependency

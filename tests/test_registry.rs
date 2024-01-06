@@ -25,7 +25,7 @@ async fn test_push_to_authenticated_registry() {
     use std::net::Ipv4Addr;
     use std::path::PathBuf;
 
-    use http::StatusCode;
+    use hyper::StatusCode;
     use hyper_tls::native_tls::{Certificate, Identity, TlsConnector};
     use itertools::Itertools;
     use log::info;

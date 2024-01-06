@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use const_str::concat;
-use http::StatusCode;
+use hyper::StatusCode;
 
 #[cfg(not(target_os = "macos"))]
 use log::{info, warn};
@@ -488,6 +488,21 @@ async fn test_inspect_non_started_container_fields() {
     assert_eq!(None, inspected.config.stop_timeout_seconds);
     assert_eq!(0, inspected.config.shell.len());
 
+    // Bridge aliases are set on Windows but not on Mac or Linux
+
+    #[cfg(windows)]
+    let expected_aliases = inspected.network_settings.networks
+        .get("bridge")
+        .expect("bridge network")
+        .aliases
+        .as_ref()
+        .expect("bridge network aliases")
+        .clone()
+        .into();
+
+    #[cfg(not(windows))]
+    let expected_aliases = None;
+
     // Network settings
     assert_eq!(HashMap::new(), inspected.network_settings.ports);
     assert_eq!(
@@ -496,7 +511,7 @@ async fn test_inspect_non_started_container_fields() {
             Network {
                 ipam_config: None,
                 links: None,
-                aliases: None,
+                aliases: expected_aliases,
                 network_id: "".into(),
                 endpoint_id: "".into(),
                 gateway: "".into(),
@@ -550,7 +565,12 @@ async fn test_remove_running_container() {
 
     if let DecUseError::Rejected { status, message } = removal_error {
         assert_eq!(StatusCode::CONFLICT, status);
-        assert!(message.contains("cannot remove a running container"));
+        assert!(
+            message.contains("cannot remove a running container")
+            ||
+            message.contains("container is running: stop the container before removing or force remove"),
+            "message was: {message}"
+        );
     }
     else {
         panic!("Did not expect failure {}", removal_error);

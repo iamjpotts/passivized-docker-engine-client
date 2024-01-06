@@ -74,7 +74,7 @@ impl From<url::ParseError> for DecLibraryError {
 
 #[cfg(test)]
 mod test_error_message_and_display {
-    use http::StatusCode;
+    use hyper::StatusCode;
     use super::DecLibraryError;
 
     fn simulated_json_failure() -> (String, serde_json::Error) {
@@ -90,7 +90,7 @@ mod test_error_message_and_display {
         let inner = StatusCode::from_u16(12345)
             .unwrap_err();
 
-        let middle = http::Error::from(inner);
+        let middle = hyper::http::Error::from(inner);
         let outer = DecLibraryError::HttpRequestBuilderError(middle);
 
         // This is a bit nonsensical but invalid status code was an easy way to create an error value for a test.

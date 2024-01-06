@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
+use http_body_util::Full;
 use hyper::http::header::CONTENT_TYPE;
 
 use hyper::{Request, StatusCode};
@@ -12,6 +13,7 @@ use serde_json::Deserializer;
 use crate::errors::{DecLibraryError, DecUseError};
 use crate::imp::content_type;
 use crate::imp::hyper_proxy::HyperHttpClient;
+use crate::imp::hyper_shims::incoming_bytes;
 use crate::imp::other::{base64_encode, converge};
 use crate::model::{RegistryAuth, RegistryConfig};
 use crate::responses::ErrorResponse;
@@ -31,37 +33,39 @@ impl DockerEngineHttpClient {
         }
     }
 
-    fn build_delete(uri: &str) -> Result<Request<hyper::Body>, DecLibraryError> {
+    fn build_delete(uri: &str) -> Result<Request<Full<Bytes>>, DecLibraryError> {
         Request::delete(uri)
-            .body(hyper::Body::empty())
+            .body(Full::new(Bytes::new()))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
-    fn build_get(uri: &str) -> Result<Request<hyper::Body>, DecLibraryError> {
+    fn build_get(uri: &str) -> Result<Request<Full<Bytes>>, DecLibraryError> {
         Request::get(uri.to_string())
-            .body(hyper::Body::empty())
+            .body(Full::new(Bytes::new()))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
     #[cfg(not(windows))]
-    fn build_put(uri: &str, content_type: &str, content: Vec<u8>) -> Result<Request<hyper::Body>, DecLibraryError> {
+    fn build_put(uri: &str, content_type: &str, content: Vec<u8>) -> Result<Request<Full<Bytes>>, DecLibraryError> {
         Request::put(uri)
             .header(CONTENT_TYPE, content_type)
-            .body(content.into())
+            .body(Full::new(content.into()))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
-    fn build_post_json<B: Serialize>(uri: &str, body: &B) -> Result<Request<hyper::Body>, DecLibraryError> {
+    fn build_post_json<B: Serialize>(uri: &str, body: &B) -> Result<Request<Full<Bytes>>, DecLibraryError> {
         let json = serde_json::to_string(body)
             .map_err(DecLibraryError::RequestSerializationError)?;
 
+        let body = Bytes::from(json);
+
         Request::post(uri.to_string())
             .header(CONTENT_TYPE, content_type::JSON)
-            .body(hyper::Body::from(json))
+            .body(Full::new(body))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
-    fn build_post_with_auth(uri: &str, registry_auth: &Option<RegistryAuth>) -> Result<Request<hyper::Body>, DecLibraryError> {
+    fn build_post_with_auth(uri: &str, registry_auth: &Option<RegistryAuth>) -> Result<Request<Full<Bytes>>, DecLibraryError> {
         let mut builder = Request::post(uri.to_string());
 
         if let Some(value) = Self::x_registry_auth(registry_auth)? {
@@ -69,7 +73,7 @@ impl DockerEngineHttpClient {
         }
 
         builder
-            .body(hyper::Body::empty())
+            .body(Full::new(Bytes::new()))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
@@ -77,7 +81,7 @@ impl DockerEngineHttpClient {
         uri: &str,
         registry_config: &HashMap<String, RegistryConfig>,
         content_type: &str,
-        body: Vec<u8>) -> Result<Request<hyper::Body>, DecLibraryError>
+        body: Vec<u8>) -> Result<Request<Full<Bytes>>, DecLibraryError>
     {
         let mut builder = Request::post(uri.to_string())
             .header(CONTENT_TYPE, content_type);
@@ -87,14 +91,14 @@ impl DockerEngineHttpClient {
         }
 
         builder
-            .body(hyper::Body::from(body))
+            .body(Full::new(body.into()))
             .map_err(DecLibraryError::HttpRequestBuilderError)
     }
 
     fn build_request<U, F>(&self, uri: U, request_from_uri: F) -> Result<DockerEngineHttpRequest, DecLibraryError>
     where
         U: ToString,
-        F: FnOnce(&str) -> Result<Request<hyper::Body>, DecLibraryError>
+        F: FnOnce(&str) -> Result<Request<Full<Bytes>>, DecLibraryError>
     {
         let u = uri.to_string();
 
@@ -174,7 +178,7 @@ impl DockerEngineHttpClient {
 #[derive(Debug)]
 pub(crate) struct DockerEngineHttpRequest {
     client: HyperHttpClient,
-    request: Request<hyper::Body>,
+    request: Request<Full<Bytes>>,
     uri: String
 }
 
@@ -184,7 +188,7 @@ impl DockerEngineHttpRequest {
         let response = self.client
             .apply(self.request)
             .await
-            .map_err(DecUseError::HttpClientError)?;
+            .map_err(DecUseError::HttpClientError2)?;
 
         Ok(
             DockerEngineHttpResponse {
@@ -197,9 +201,10 @@ impl DockerEngineHttpRequest {
                         Err(_) => None
                     }
                 },
-                body: hyper::body::to_bytes(response.into_body())
+                body: incoming_bytes(response)
                     .await
                     .map_err(DecUseError::HttpClientError)?
+                    .into()
             }
         )
     }
@@ -420,8 +425,8 @@ pub struct DockerEngineResponseNotUtf8 {
 
 #[cfg(test)]
 mod test_der {
-    use http::StatusCode;
     use hyper::body::Bytes;
+    use hyper::StatusCode;
 
     use super::DockerEngineHttpResponse;
 
@@ -435,8 +440,8 @@ mod test_der {
     }
 
     mod assert_item_status {
-        use http::StatusCode;
         use hyper::body::Bytes;
+        use hyper::StatusCode;
         use crate::errors::DecUseError;
         use crate::imp::content_type::JSON;
         use crate::imp::http_proxy::DockerEngineHttpResponse;
@@ -495,8 +500,8 @@ mod test_der {
     }
 
     mod assert_item_status_in {
-        use http::StatusCode;
         use hyper::body::Bytes;
+        use hyper::StatusCode;
         use crate::errors::DecUseError;
         use crate::imp::content_type::JSON;
         use crate::imp::http_proxy::DockerEngineHttpResponse;
@@ -535,7 +540,7 @@ mod test_der {
     }
 
     mod assert_list_status {
-        use http::StatusCode;
+        use hyper::StatusCode;
         use crate::errors::DecUseError;
         use crate::imp::http_proxy::DockerEngineHttpResponse;
 
@@ -697,7 +702,7 @@ mod test_der {
     }
 
     mod parse_other_item_response {
-        use http::StatusCode;
+        use hyper::StatusCode;
         use crate::errors::DecUseError;
         use crate::imp::http_proxy::DockerEngineHttpResponse;
 
@@ -722,7 +727,7 @@ mod test_der {
     }
 
     mod parse_other_list_response {
-        use http::StatusCode;
+        use hyper::StatusCode;
         use crate::errors::DecUseError;
         use super::super::DockerEngineHttpResponse;
 

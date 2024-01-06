@@ -3,7 +3,8 @@ mod test_utils;
 
 use std::str::FromStr;
 
-use http::{StatusCode, Uri};
+use http::Uri;
+use hyper::StatusCode;
 use mockito::{Server, ServerGuard};
 use tar::{Header, Builder};
 use test_utils::images::web;
